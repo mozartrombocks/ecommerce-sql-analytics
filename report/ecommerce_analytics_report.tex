@@ -1,0 +1,971 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[a4paper, margin=2.5cm, headheight=15pt]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{parskip}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{setspace}
+
+% ── Colours ───────────────────────────────────────────────────────────────────
+\definecolor{sqlblue}{RGB}{0,70,127}
+\definecolor{codegray}{RGB}{245,245,245}
+\definecolor{commentgreen}{RGB}{0,128,0}
+\definecolor{keywordblue}{RGB}{0,0,200}
+
+% ── SQL Listings Style ────────────────────────────────────────────────────────
+\lstdefinestyle{sqlstyle}{
+    backgroundcolor=\color{codegray},
+    commentstyle=\color{commentgreen}\itshape,
+    keywordstyle=\color{keywordblue}\bfseries,
+    numberstyle=\tiny\color{gray},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{gray!40},
+    language=SQL,
+    morekeywords={CREATE, OR, REPLACE, VIEW, WITH, OVER, PARTITION, EXTRACT,
+                  COALESCE, NULLIF, DATE_TRUNC, ROUND, ROW_NUMBER, RANK, LAG,
+                  NUMERIC, TIMESTAMP, FOREIGN, PRIMARY, REFERENCES}
+}
+\lstset{style=sqlstyle}
+
+% ── Header / Footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Brazilian E-Commerce Analytics}
+\lhead{\small Mohammed S. Rahman}
+\rfoot{\small \thepage}
+\lfoot{\small June 2026}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% ── Section Formatting ────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{sqlblue}}{{\thesection}}{1em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{{\thesubsection}}{1em}{}
+\titleformat{\subsubsection}{\normalsize\itshape\bfseries}{{\thesubsubsection}}{1em}{}
+
+% ── Hyperlinks ────────────────────────────────────────────────────────────────
+\hypersetup{
+    colorlinks=true,
+    linkcolor=sqlblue,
+    urlcolor=sqlblue,
+    citecolor=sqlblue
+}
+
+% ── Document ──────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title Page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+
+    {\Huge\bfseries Brazilian E-Commerce Analytics}\\[0.5em]
+    {\Large A Relational Database \& Business Intelligence Pipeline}\\[3cm]
+
+    {\large Mohammed S. Rahman}\\[0.5cm]
+    {\normalsize June 2026}\\[4cm]
+
+    \begin{abstract}
+        \noindent
+        This report documents the end-to-end design, implementation, and visualisation of
+        a relational analytics pipeline built on the Olist Brazilian E-Commerce public
+        dataset. The pipeline spans database schema creation, data quality validation, the
+        construction of reusable analytical views, and a suite of five Power~BI dashboard
+        pages covering executive KPIs, revenue trends, product performance, customer
+        retention, and delivery \& review quality. Across the dataset's approximately
+        100{,}000 orders placed between 2016 and 2018, total platform revenue stands at
+        \$15.42~million from 96{,}000 delivered orders, with an average order value of
+        \$159.83. Health \& beauty and watches \& gifts are the highest-revenue product
+        categories, São Paulo sellers generate the dominant share of platform revenue, and
+        the overall late-delivery rate of 8.11\% is associated with a measurable decline in
+        customer review scores. The repeat-customer rate of just 3\% highlights a structural
+        retention challenge that represents the platform's most significant operational
+        opportunity for improvement.
+    \end{abstract}
+
+    \vfill
+\end{titlepage}
+
+% ── Table of Contents ─────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+% ══════════════════════════════════════════════════════════════════════════════
+
+E-commerce platforms generate rich transactional records that, when organised and queried
+systematically, yield actionable insights across revenue, operations, product assortment, and
+customer experience. This project applies a structured analytics workflow to the Olist
+Brazilian E-Commerce dataset — a publicly available collection of anonymised marketplace
+orders — with the goal of building a reproducible, query-driven intelligence layer and a
+multi-page Power~BI dashboard accessible to non-technical stakeholders.
+
+The project addresses four core business questions:
+
+\begin{enumerate}
+    \item \textbf{Revenue \& Growth:} How has platform revenue evolved over time, which
+          states drive the most orders, and what is the trajectory of average order value?
+    \item \textbf{Product Performance:} Which product categories generate the most revenue
+          and volume, and where does freight cost create margin pressure?
+    \item \textbf{Customer Retention:} What share of customers make repeat purchases, and
+          how do new-customer acquisition rates evolve across cohorts?
+    \item \textbf{Operational Quality:} How does delivery speed correlate with customer
+          review scores, and which states and sellers exhibit the worst late-delivery rates?
+\end{enumerate}
+
+The remainder of this report is structured as follows. Section~\ref{sec:data} describes the
+dataset and the relational schema. Section~\ref{sec:pipeline} documents the SQL pipeline in
+detail, from schema creation through analytical views and dashboard views. Section~\ref{sec:dashboard} presents and interprets each of the five Power~BI dashboard pages.
+Section~\ref{sec:discussion} synthesises findings and identifies limitations.
+Section~\ref{sec:conclusion} concludes.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{The Data}
+\label{sec:data}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Dataset Overview}
+
+The Olist dataset is a Brazilian e-commerce public dataset made available on Kaggle,
+containing real commercial data from the Olist marketplace spanning September 2016 to
+August 2018. The dataset captures the full order lifecycle — from customer purchase through
+payment, dispatch, delivery, and post-delivery review — across multiple interlinked tables.
+
+Table~\ref{tab:row_counts} summarises the approximate row counts for each table after loading
+and quality-checking the data.
+
+\begin{table}[H]
+    \centering
+    \caption{Approximate row counts per table after data loading.}
+    \label{tab:row_counts}
+    \begin{tabular}{lrl}
+        \toprule
+        \textbf{Table} & \textbf{Row Count} & \textbf{Description} \\
+        \midrule
+        \texttt{customers}                  & 99{,}441 & One record per order-customer link \\
+        \texttt{orders}                     & 99{,}441 & Order header with status and timestamps \\
+        \texttt{order\_items}               & 112{,}650 & Line items with price and freight \\
+        \texttt{order\_payments}            & 103{,}886 & Payment records (multiple per order) \\
+        \texttt{order\_reviews}             & 99{,}224 & Post-delivery review scores and comments \\
+        \texttt{products}                   & 32{,}951 & Product attributes and dimensions \\
+        \texttt{sellers}                    & 3{,}095  & Seller location data \\
+        \texttt{product\_category\_translation} & 71 & Portuguese to English category names \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Schema Design}
+
+The database uses a star-schema-style relational layout with \texttt{orders} as the central
+fact table. Figure~\ref{fig:schema} illustrates the entity relationships.
+
+\begin{figure}[H]
+\centering
+\ttfamily\small
+\begin{tabular}{ccccc}
+ & & \textbf{customers} & & \\
+ & & $\uparrow$ & & \\
+\textbf{order\_reviews} & $\leftarrow$ & \textbf{orders} & $\rightarrow$ & \textbf{order\_payments} \\
+ & & $\downarrow$ & & \\
+ & & \textbf{order\_items} & & \\
+ & $\swarrow$ & & $\searrow$ & \\
+\textbf{products} & & & & \textbf{sellers} \\
+$\downarrow$ & & & & \\
+\textbf{product\_category} & & & & \\
+\textbf{\_translation} & & & & \\
+\end{tabular}
+\rmfamily
+\caption{Conceptual entity-relationship diagram. \texttt{orders} sits at the centre,
+    joined to \texttt{customers}, \texttt{order\_items}, \texttt{order\_payments}, and
+    \texttt{order\_reviews}. \texttt{order\_items} links to both \texttt{products} and
+    \texttt{sellers}.}
+\label{fig:schema}
+\end{figure}
+
+The eight tables and their relationships are defined as follows:
+
+\begin{itemize}
+    \item \texttt{customers} — stores one row per \texttt{customer\_id} (which is
+          order-scoped in this dataset), with a separate \texttt{customer\_unique\_id} used
+          to identify the same buyer across multiple orders.
+    \item \texttt{orders} — the primary fact table; each row is a single order with status
+          and four key timestamps (purchase, approval, carrier handover, and customer delivery).
+    \item \texttt{order\_items} — a composite-keyed table (\texttt{order\_id},
+          \texttt{order\_item\_id}) containing the price and freight value for every line item.
+    \item \texttt{order\_payments} — records one or more payment records per order,
+          supporting split and instalment payments.
+    \item \texttt{order\_reviews} — one review per order, containing a 1--5 star score and
+          optional comment fields.
+    \item \texttt{products} — physical attributes including weight, dimensions, and
+          Portuguese-language category names.
+    \item \texttt{sellers} — geographic data (city, state, zip code prefix) for each seller.
+    \item \texttt{product\_category\_translation} — a lookup table mapping Portuguese
+          category names to English equivalents.
+\end{itemize}
+
+\subsection{Data Quality Findings}
+
+Before analysis, a structured set of 15 data-quality checks was executed (SQL file
+\texttt{02\_data\_quality\_checks.sql}). Key findings are summarised below.
+
+\subsubsection{Order Status Distribution}
+
+The vast majority of orders (approximately 96.5\%) have a status of \texttt{delivered},
+making the delivered-order subset the natural population for revenue and performance
+analysis. The remaining statuses include \texttt{shipped}, \texttt{canceled},
+\texttt{unavailable}, \texttt{invoiced}, \texttt{processing}, and \texttt{created}.
+
+\subsubsection{Missing Delivery Dates}
+
+A meaningful proportion of orders lack a recorded \texttt{order\_delivered\_customer\_date},
+consistent with orders that did not reach the \texttt{delivered} status. All revenue and
+delivery performance metrics are therefore computed on the delivered subset only, using the
+\texttt{vw\_order\_metrics} view which filters explicitly to \texttt{order\_status =
+'delivered'}.
+
+\subsubsection{Review Score Distribution}
+
+The platform's review distribution is heavily right-skewed: 5-star reviews are the single
+largest group (approximately 57\% of all reviews), while 1-star reviews constitute roughly
+11\%. The overall mean review score is 4.09 out of 5.
+
+\subsubsection{Payment Method Distribution}
+
+Credit card is the dominant payment method, accounting for approximately 74\% of all
+payment records, followed by \textit{boleto} (a Brazilian bank slip) at roughly 19\%.
+Vouchers and debit cards make up the remainder.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{The Analytics Pipeline}
+\label{sec:pipeline}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The analytics pipeline consists of nine sequential SQL scripts. Each script builds on the
+outputs of its predecessors, progressing from raw table creation through quality checks,
+analytical views, domain-specific analyses, and finally dashboard-ready views consumed
+directly by Power~BI. Table~\ref{tab:scripts} summarises each script's role.
+
+\begin{table}[H]
+    \centering
+    \caption{SQL pipeline script inventory.}
+    \label{tab:scripts}
+    \begin{tabular}{lp{9.5cm}}
+        \toprule
+        \textbf{Script} & \textbf{Purpose} \\
+        \midrule
+        \texttt{01\_create\_tables.sql}           & Drops and recreates all eight base tables with
+                                                     foreign key constraints. \\
+        \texttt{02\_data\_quality\_checks.sql}    & 15 diagnostic queries: row counts, status distributions,
+                                                     date coverage, review distributions, and join integrity checks. \\
+        \texttt{03\_analytics\_views.sql}         & Creates three core analytical views reused throughout the pipeline:
+                                                     \texttt{vw\_order\_metrics}, \texttt{vw\_category\_revenue},
+                                                     and \texttt{vw\_customer\_retention}. \\
+        \texttt{04\_revenue\_analysis.sql}        & 12 queries covering total revenue, monthly trends, state-level
+                                                     breakdowns, month-over-month growth, and AOV. \\
+        \texttt{05\_product\_analysis.sql}        & 12 queries on category revenue, volume, freight burden,
+                                                     revenue concentration, and review-weighted performance. \\
+        \texttt{06\_customer\_retention\_analysis.sql} & 12 queries on repeat-customer rates, cohort retention,
+                                                          first-purchase trends, and customer segmentation. \\
+        \texttt{07\_delivery\_review\_analysis.sql}    & 16 queries on delivery speed, late rates, review score
+                                                          distributions, and the delivery-to-review relationship. \\
+        \texttt{08\_seller\_analysis.sql}         & 14 queries on seller revenue, concentration, review
+                                                     performance, late-delivery rates, and state-level seller metrics. \\
+        \texttt{09\_dashboard\_views.sql}         & 15 \texttt{CREATE OR REPLACE VIEW} statements producing
+                                                     the final aggregated views consumed by Power~BI. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Core Analytical Views (Script 03)}
+
+Three foundational views are created in \texttt{03\_analytics\_views.sql} and referenced
+extensively by all downstream scripts.
+
+\subsubsection{\texttt{vw\_order\_metrics}}
+
+This is the primary analytical view, joining \texttt{orders}, \texttt{customers}, and
+\texttt{order\_items} for all delivered orders. It computes, per order:
+
+\begin{itemize}
+    \item \textbf{Revenue components}: \texttt{product\_revenue}, \texttt{freight\_revenue},
+          and \texttt{total\_order\_value}.
+    \item \textbf{Delivery performance}: \texttt{delivery\_days} (days from purchase to
+          customer delivery) and \texttt{is\_late\_delivery} (a binary flag set to 1 when
+          actual delivery exceeds the estimated delivery date).
+    \item \textbf{Time dimensions}: \texttt{order\_month} via
+          \texttt{DATE\_TRUNC('month', \ldots)} for monthly aggregation.
+\end{itemize}
+
+A representative excerpt of the view definition is shown below:
+
+\begin{lstlisting}[caption={Core delivered-order metrics view (excerpt).}, label={lst:vw_order}]
+CREATE OR REPLACE VIEW vw_order_metrics AS
+SELECT
+    o.order_id,
+    o.customer_id,
+    c.customer_unique_id,
+    c.customer_state,
+    DATE_TRUNC('month', o.order_purchase_timestamp) AS order_month,
+    SUM(oi.price)               AS product_revenue,
+    SUM(oi.freight_value)       AS freight_revenue,
+    SUM(oi.price + oi.freight_value) AS total_order_value,
+    CASE
+        WHEN o.order_delivered_customer_date
+             > o.order_estimated_delivery_date
+        THEN 1 ELSE 0
+    END AS is_late_delivery,
+    EXTRACT(DAY FROM
+        o.order_delivered_customer_date
+        - o.order_purchase_timestamp) AS delivery_days
+FROM orders o
+JOIN customers c ON o.customer_id = c.customer_id
+JOIN order_items oi ON o.order_id = oi.order_id
+WHERE o.order_status = 'delivered'
+GROUP BY o.order_id, o.customer_id, c.customer_unique_id,
+         c.customer_state, o.order_purchase_timestamp,
+         o.order_delivered_customer_date,
+         o.order_estimated_delivery_date;
+\end{lstlisting}
+
+\subsubsection{\texttt{vw\_category\_revenue}}
+
+This view joins \texttt{order\_items}, \texttt{products}, and
+\texttt{product\_category\_translation} to produce revenue, volume, and average price
+metrics per product category. The \texttt{COALESCE} pattern handles any categories that
+lack an English translation by falling back to the Portuguese name.
+
+\subsubsection{\texttt{vw\_customer\_retention}}
+
+Using a common table expression (CTE) with \texttt{ROW\_NUMBER()} partitioned by
+\texttt{customer\_unique\_id}, this view assigns an order sequence number to each delivered
+order per unique customer. The outer query then aggregates to flag each customer as a
+repeat buyer (\texttt{is\_repeat\_customer = 1}) if they placed more than one delivered
+order.
+
+\subsection{Cohort Retention Analysis (Script 06)}
+
+The most technically involved query in the pipeline is the cohort retention analysis in
+\texttt{06\_customer\_retention\_analysis.sql}. It uses a four-CTE chain to compute, for
+each monthly cohort, the share of customers still active at each subsequent month since
+first purchase. The structure is:
+
+\begin{enumerate}
+    \item \texttt{customer\_orders} — one row per (unique customer, order month) pair.
+    \item \texttt{cohorts} — the minimum order month for each unique customer, defining
+          the cohort assignment.
+    \item \texttt{cohort\_activity} — cross-joins customers to their cohort to compute
+          \texttt{months\_since\_first\_purchase} using \texttt{EXTRACT(YEAR)} and
+          \texttt{EXTRACT(MONTH)} arithmetic.
+    \item \texttt{cohort\_counts} and \texttt{cohort\_sizes} — aggregate active customer
+          counts, then divide by cohort size at month 0 to yield
+          \texttt{retention\_percent}.
+\end{enumerate}
+
+\subsection{Delivery--Review Relationship (Script 07)}
+
+Script 07 quantifies how delivery speed and on-time performance correlate with customer
+satisfaction. Three analytical approaches are used:
+
+\begin{itemize}
+    \item \textbf{Late vs on-time review score}: joining \texttt{vw\_order\_metrics} with
+          \texttt{order\_reviews} and grouping by \texttt{is\_late\_delivery}.
+    \item \textbf{Delivery speed buckets}: orders are bucketed into five groups
+          (0--3 days, 4--7 days, 8--14 days, 15--30 days, 31+ days) and the average
+          review score computed for each.
+    \item \textbf{Review distribution by delivery status}: a window function computes the
+          within-status percentage of each review score (1--5), enabling a side-by-side
+          comparison of the full review distribution for late versus on-time orders.
+\end{itemize}
+
+\subsection{Seller Revenue Concentration (Script 08)}
+
+The seller analysis identifies a concentration pattern in platform revenue. Using
+\texttt{RANK()} over seller-level revenue followed by a \texttt{CASE} bucketing step, the
+pipeline quantifies what fraction of total revenue is generated by the top 10, top 11--50,
+top 51--100, and all remaining sellers.
+
+\subsection{Dashboard Views (Script 09)}
+
+Fifteen \texttt{CREATE OR REPLACE VIEW} statements consolidate the analytical results into
+clean, aggregated views designed for direct Power~BI connection via a PostgreSQL
+connector. Each view corresponds to one or more visualisations in the dashboard. Named
+consistently with a \texttt{dashboard\_} prefix (e.g.\ \texttt{dashboard\_executive\_kpis},
+\texttt{dashboard\_cohort\_retention}, \texttt{dashboard\_seller\_concentration}), these
+views pre-compute all aggregations so that Power~BI can load data efficiently without
+performing complex joins at query time.
+
+\subsection{Data Loading Utility}
+
+The Python script \texttt{load\_reviews.py} handles the loading of the order reviews CSV
+into PostgreSQL. The reviews file required special handling due to its
+\texttt{latin1} character encoding (common in Brazilian data exports). The script uses
+\texttt{pandas} with \texttt{sqlalchemy} and \texttt{psycopg2}, parsing the two timestamp
+columns (\texttt{review\_creation\_date} and \texttt{review\_answer\_timestamp}) with
+\texttt{pd.to\_datetime(\ldots, errors=`coerce')} to gracefully handle any malformed date
+strings. Data is written to the \texttt{order\_reviews} table in chunks of 1{,}000 rows
+using the \texttt{multi} insert method.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Power BI Dashboard}
+\label{sec:dashboard}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The Power~BI dashboard comprises five pages, each connected to the corresponding
+\texttt{dashboard\_*} views in PostgreSQL. The pages are: Executive Overview, Revenue
+(embedded in the Executive Overview), Product Analysis, Customer Retention, and Delivery
+\& Reviews, and Seller Analysis.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\subsection{Executive Overview}
+% ──────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{executive_overview}
+    \caption{Executive Overview dashboard page showing top-line KPIs, monthly revenue and
+    order trends (2016--2018), and revenue by customer state.}
+    \label{fig:exec_overview}
+\end{figure}
+
+The Executive Overview page (Figure~\ref{fig:exec_overview}) presents six headline KPIs
+alongside monthly trend charts and a revenue-by-state breakdown. Key figures are
+summarised in Table~\ref{tab:exec_kpis}.
+
+\begin{table}[H]
+    \centering
+    \caption{Executive KPI summary from \texttt{dashboard\_executive\_kpis}.}
+    \label{tab:exec_kpis}
+    \begin{tabular}{lr}
+        \toprule
+        \textbf{Metric} & \textbf{Value} \\
+        \midrule
+        Total Revenue              & \$15.42 million \\
+        Total Delivered Orders     & 96{,}000 \\
+        Average Order Value (AOV)  & \$159.83 \\
+        Average Review Score       & 4.09 / 5 \\
+        Late Delivery Rate         & 8.11\% \\
+        Repeat Customer Rate       & 3.00\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Revenue and Order Volume Trends}
+
+Monthly revenue grew substantially from near-zero in late 2016 to approximately \$8--9
+million accumulated by mid-2018. The monthly orders chart exhibits a very similar shape,
+with a marked acceleration through 2017 that plateaus into 2018. This parallel growth in
+both order count and revenue indicates that the average order value remained relatively
+stable over the period, a finding confirmed by the AOV metric of \$159.83.
+
+A notable feature of the revenue trend is the apparent levelling off in early-to-mid 2018.
+This could reflect seasonal effects, market saturation in the platform's existing customer
+base, or data truncation at the dataset's August 2018 endpoint.
+
+\subsubsection{Revenue by State}
+
+The state-level bar chart reveals high geographic concentration. São Paulo (SP) dominates
+by a considerable margin, consistent with its status as Brazil's most populous and
+economically active state. Rio de Janeiro, Minas Gerais, and other south/southeast states
+follow. Northern and northeastern states contribute minimally to platform revenue, which
+may reflect both lower internet penetration and longer delivery times to those regions — a
+theme reinforced by the Delivery \& Reviews dashboard.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\subsection{Product Analysis}
+% ──────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{product_analysis}
+    \caption{Product Analysis dashboard page showing top categories by revenue and items
+    sold, revenue share, and freight cost burden.}
+    \label{fig:product}
+\end{figure}
+
+The Product Analysis page (Figure~\ref{fig:product}) provides four views of category-level
+performance sourced from \texttt{vw\_category\_revenue} and
+\texttt{dashboard\_product\_categories}.
+
+\subsubsection{Top Categories by Revenue}
+
+Health \& beauty leads all categories at approximately \$1.3 million in product revenue,
+followed closely by watches \& gifts (\$1.2 million) and bed, bath \& table (\$1.0 million).
+Sports \& leisure and computers \& accessories round out the top five, each contributing
+around \$0.9--1.0 million. The top five categories collectively account for roughly 45\% of
+total platform revenue — a concentration level that is significant but not extreme, suggesting
+that the Olist marketplace has a moderately diversified category mix.
+
+\subsubsection{Top Categories by Items Sold}
+
+By volume (items sold), bed, bath \& table takes the top position at approximately 11,100
+items, followed by health \& beauty (9,700 items) and sports \& leisure (8,600 items). The
+divergence between the revenue and volume rankings is economically informative: watches
+\& gifts ranks second in revenue but seventh in volume, implying a high average selling
+price, while bed, bath \& table ranks first in volume but third in revenue, indicating
+lower-priced items sold in large quantities.
+
+\subsubsection{Revenue Share}
+
+The revenue share pie chart confirms category concentration: health \& beauty holds
+approximately 11\% of total revenue, watches \& gifts around 10.6\%, and the remaining
+categories each contribute less than 10\%. The long tail of small categories is visually
+represented by the crowded outer portion of the chart, reinforcing that the revenue
+distribution is moderately concentrated rather than winner-takes-all.
+
+\subsubsection{Freight Cost Burden by Category}
+
+The freight-to-revenue percentage chart highlights a structurally important margin risk. The
+\texttt{home\_comfort} and \texttt{flowers} categories exhibit freight costs exceeding 50\%
+of product revenue — an economically unviable position for sellers or the platform. Bulky
+and fragile goods (furniture, large home items) unsurprisingly feature high freight burdens.
+Categories such as watches \& gifts and computers show moderate freight ratios in the
+20--35\% range, reflecting their higher price points relative to weight and volume.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\subsection{Customer Retention}
+% ──────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{customer_retention}
+    \caption{Customer Retention dashboard page showing one-time versus repeat customer
+    breakdown, new customer acquisition over time, orders-per-customer distribution,
+    and cohort retention table.}
+    \label{fig:retention}
+\end{figure}
+
+The Customer Retention page (Figure~\ref{fig:retention}) is sourced from
+\texttt{vw\_customer\_retention}, \texttt{dashboard\_customer\_retention},
+\texttt{dashboard\_orders\_per\_customer}, \texttt{dashboard\_new\_customers\_by\_month},
+and \texttt{dashboard\_cohort\_retention}.
+
+\subsubsection{One-Time vs Repeat Customers}
+
+The donut chart reveals a striking finding: 97\% of customers (approximately 91,000) made
+only one delivered purchase, while just 3\% (approximately 3,000) returned for a second
+or subsequent order. This near-complete absence of repeat purchasing behaviour is the most
+commercially significant finding in the dataset. It suggests that the platform is operating
+almost entirely as a new-customer acquisition engine rather than a retention platform —
+a fundamentally expensive model, given that customer acquisition typically costs
+significantly more than retention.
+
+\subsubsection{New Customer Acquisition Trend}
+
+The line chart of new customers by year shows rapid growth: near-zero in 2016, a steep
+rise through 2017 to approximately 40,000 new customers, and continued growth into 2018
+approaching 50,000. This growth trajectory demonstrates strong top-of-funnel performance,
+but the retention data contextualises it: virtually none of those new customers returned.
+
+\subsubsection{Orders per Customer Distribution}
+
+The bar chart of customer count by total orders confirms the dominance of single-order
+customers, with the bar at \texttt{total\_orders = 1} dwarfing all others by orders of
+magnitude. A small but visible tail extends to 5--10+ orders for a tiny segment of highly
+engaged customers, but these represent a negligible fraction of the base.
+
+\subsubsection{Cohort Retention Table}
+
+The cohort table (right side of Figure~\ref{fig:retention}) displays the count of customers
+returning in each subsequent month after their first purchase, segmented by cohort year.
+The 2016 cohort (300 customers at month 0) shows marginal retention to months 1 and
+beyond. The 2017 cohort (1,200 at month 0) retains roughly 100 customers at month 1
+(approximately 8\%) and rapidly approaches zero by month 3. The 2018 cohort shows similar
+or weaker patterns. These figures are consistent with the headline 3\% repeat-customer rate
+and confirm that retention is a persistent structural issue rather than a recent trend.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\subsection{Delivery \& Reviews}
+% ──────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{delivery_and_reviews}
+    \caption{Delivery \& Reviews dashboard page showing review score distribution,
+    delivery speed vs.\ review score, delivery status impact on satisfaction, and
+    late-delivery rate by customer state.}
+    \label{fig:delivery}
+\end{figure}
+
+The Delivery \& Reviews page (Figure~\ref{fig:delivery}) draws from
+\texttt{dashboard\_delivery\_reviews}, \texttt{dashboard\_delivery\_speed\_groups},
+\texttt{dashboard\_delivery\_by\_state}, and \texttt{dashboard\_review\_distribution}.
+
+\subsubsection{Review Score Distribution}
+
+The histogram of review scores shows a strongly bimodal distribution: 5-star reviews
+dominate at approximately 57,000 reviews, with a secondary mode at 1-star (approximately
+11,000 reviews). Scores 2, 3, and 4 are less frequent. This polarisation is a common
+pattern in marketplace review systems, where customers are most motivated to leave reviews
+at the extremes of experience.
+
+\subsubsection{Delivery Speed and Review Score}
+
+The combined bar-and-line chart (top-right of Figure~\ref{fig:delivery}) plots total orders
+by delivery speed group alongside the average review score for each group. Results confirm
+a clear positive relationship between faster delivery and higher satisfaction:
+
+\begin{itemize}
+    \item Orders delivered in \textbf{0--3 days} attract the highest average review scores,
+          approaching 4.4 out of 5.
+    \item Orders in the \textbf{4--7 day} and \textbf{8--14 day} buckets show moderate
+          scores around 4.1--4.2.
+    \item Orders taking \textbf{15--30 days} see scores decline to approximately 3.8.
+    \item Orders taking \textbf{31+ days} show the lowest satisfaction, with average scores
+          around 2.5--2.8.
+\end{itemize}
+
+The volume distribution peaks in the 8--14 day bucket, which is the modal delivery
+experience on the platform. Reducing this to 4--7 days for a meaningful fraction of orders
+would likely produce a measurable improvement in the platform's average review score.
+
+\subsubsection{Late Delivery vs On-Time Review Scores}
+
+The horizontal bar chart confirms that on-time deliveries receive a substantially higher
+average review score than late deliveries. On-time orders average approximately 4.3--4.4
+stars, while late orders average roughly 2.7--2.9 stars — a difference of approximately 1.5
+rating points. This gap has direct implications for seller reputation and platform trust.
+
+\subsubsection{Late Delivery Rate by State}
+
+The horizontal bar chart of late delivery rates by customer state (bottom-right of
+Figure~\ref{fig:delivery}) identifies Alagoas (AL), Maranhão (MA), and Piauí (PI) as the
+states with the highest proportions of late deliveries, with rates exceeding 20\% for the
+worst performers. These states are predominantly in Brazil's northeast region, consistent
+with longer last-mile distances from the São Paulo-concentrated seller base and less
+developed logistics infrastructure.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\subsection{Seller Analysis}
+% ──────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{seller_analysis}
+    \caption{Seller Analysis dashboard page showing top sellers by revenue, seller revenue
+    by state, revenue concentration, and seller review performance scatter plot.}
+    \label{fig:seller}
+\end{figure}
+
+The Seller Analysis page (Figure~\ref{fig:seller}) draws from
+\texttt{dashboard\_seller\_performance}, \texttt{dashboard\_seller\_state}, and
+\texttt{dashboard\_seller\_concentration}.
+
+\subsubsection{Top Sellers by Revenue}
+
+The top-ten sellers by revenue chart shows the leading seller generating approximately
+\$230,000 in product revenue, with a relatively steep drop-off to sellers 2--10, each
+contributing in the \$130,000--\$200,000 range. These are large individual operators by
+marketplace standards, likely representing either multi-category merchants or high-volume
+niche specialists.
+
+\subsubsection{Seller Revenue by State}
+
+São Paulo (SP) is the dominant seller state by a wide margin, with total seller revenue
+approaching \$10 million — more than double the combined contribution of all other states.
+Paraná (PR) and Minas Gerais (MG) are the next largest seller states. This geographic
+concentration of sellers in the south/southeast mirrors the customer concentration in the
+same region, and has implications for delivery times to customers in more distant states.
+
+\subsubsection{Revenue Concentration}
+
+The donut chart of seller revenue concentration reveals that the top 10 sellers account for
+approximately 19.9\% of total platform revenue (from the 3,000+ active sellers). The top
+11--50 sellers contribute a further 13.3\%, and the top 51--100 add 12.3\%, leaving
+approximately 54.5\% of revenue generated by the long tail of smaller sellers. This is a
+healthier concentration profile than many marketplaces, where a handful of sellers can
+dominate 70--80\% of revenue.
+
+\subsubsection{Review Score vs Revenue Scatter}
+
+The scatter plot of average review score against seller revenue (colour-coded by state)
+shows a broadly positive cloud without strong linear structure: most sellers cluster at
+review scores between 3.5 and 4.5, with revenue varying widely within that band. A small
+number of high-revenue sellers show review scores below 3.0, representing a risk to
+platform quality. The colour coding reveals that São Paulo sellers (in purple/blue tones)
+populate both the high-revenue and the full range of review score positions.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Discussion}
+\label{sec:discussion}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Summary of Findings}
+
+This project surfaces five findings of primary commercial importance.
+
+\textbf{1. Revenue growth is strong but decelerating.} Platform revenue grew steeply
+through 2017 and into early 2018 before showing signs of deceleration. The average order
+value of \$159.83 has remained stable, indicating that growth was volume-driven rather
+than ticket-size-driven. Sustaining revenue growth will require either continued new-customer
+acquisition or — more efficiently — improvements to the repeat-purchase rate.
+
+\textbf{2. Customer retention is critically low.} A 3\% repeat-customer rate is the
+most important single finding in the dataset. The economic implications are severe:
+every dollar of revenue growth requires almost exactly one dollar of customer acquisition
+spend, and the platform captures almost no benefit from the compounding loyalty that
+characterises healthy marketplaces. Initiatives to increase repeat purchasing — loyalty
+programmes, post-purchase re-engagement, subscription-style offers — represent the
+highest-leverage investment available.
+
+\textbf{3. Delivery speed is the dominant driver of customer satisfaction.} The 1.5-star
+average review score gap between late and on-time deliveries, and the monotone decline in
+scores across speed buckets, establishes delivery performance as the most operationally
+actionable lever for improving customer experience. With 8.11\% of orders arriving late,
+and northeastern states suffering rates above 20\%, there is meaningful headroom for
+improvement.
+
+\textbf{4. Product concentration is moderate and healthy.} The top five categories
+account for roughly 45\% of revenue, and no single category dominates. This diversification
+mitigates category risk and suggests the platform has successfully recruited merchants across
+a broad assortment. The freight burden analysis, however, flags specific categories
+(home comfort, flowers, and oversized goods) where high shipping costs likely suppress
+seller viability or require subsidisation.
+
+\textbf{5. Seller geography creates a structural logistics challenge.} The concentration
+of both sellers and customers in São Paulo and adjacent states, combined with the low seller
+presence in the north and northeast, creates systematically longer and less reliable delivery
+routes to those regions. Recruiting sellers in underserved states or establishing
+regional fulfilment infrastructure would be the most direct remedies.
+
+\subsection{Limitations and Future Work}
+
+\textbf{Causal claims are not warranted.} The analyses in this project are descriptive
+and associative. The observed correlation between late delivery and low review scores does
+not rule out the possibility that both are caused by a third factor (e.g., seller quality).
+Causal identification would require experimental variation in delivery conditions.
+
+\textbf{The 3\% repeat-customer rate may be partially an artefact of the dataset.}
+The Olist dataset's \texttt{customer\_id} is order-scoped, meaning that a returning customer
+may receive a new \texttt{customer\_id} if they place an order under slightly different
+account details. The \texttt{customer\_unique\_id} field is designed to mitigate this, but
+its completeness and accuracy is not formally documented. The true repeat-customer rate may
+be modestly higher than 3\%.
+
+\textbf{The dataset ends in August 2018.} Post-2018 growth, competitive dynamics, and
+any operational changes Olist made in response to early data signals are outside the scope
+of this analysis.
+
+\textbf{Predictive modelling is a natural extension.} The structured database and
+analytical views created here provide a clean foundation for supervised learning
+applications — for example, predicting which customers are likely to make a second
+purchase (a counterpart to the churn prediction pipeline documented separately), or
+predicting delivery delay at the order level to trigger proactive customer communications.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+% ══════════════════════════════════════════════════════════════════════════════
+
+This project delivers a complete analytics pipeline from raw CSV data to an interactive
+multi-page Power~BI dashboard, grounded in a well-structured PostgreSQL relational schema
+and a layered SQL architecture. The pipeline produces reproducible, reusable analytical
+views that abstract complexity away from the dashboard layer, making future analytical
+queries and dashboard extensions straightforward.
+
+The most commercially significant findings are the near-absence of repeat purchasing
+behaviour (3\% repeat-customer rate), the strong link between delivery timeliness and
+customer satisfaction, and the geographic concentration of sellers in São Paulo that
+creates structural delivery disadvantages for northeastern customers. Together, these
+findings point toward a clear strategic agenda: invest in customer retention mechanisms,
+reduce late-delivery rates in underserved regions, and monitor high-revenue sellers with
+sub-par review performance before reputational damage compounds.
+
+The SQL scripts, Python data-loading utility, and Power~BI dashboard represent a
+self-contained, extensible artefact that could be maintained and updated as new monthly
+order data becomes available. The dashboard views are designed for direct PostgreSQL
+connector refresh in Power~BI, requiring no manual data transformation steps once the
+underlying tables are updated.
+
+% ══════════════════════════════════════════════════════════════════════════════
+% Appendix
+% ══════════════════════════════════════════════════════════════════════════════
+\appendix
+
+\section{SQL Script: Table Creation (\texttt{01\_create\_tables.sql})}
+\label{app:create_tables}
+
+\begin{lstlisting}[caption={Full table creation script.}, label={lst:create_tables}]
+DROP TABLE IF EXISTS order_reviews;
+DROP TABLE IF EXISTS order_payments;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS sellers;
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS product_category_translation;
+
+CREATE TABLE customers (
+    customer_id           TEXT PRIMARY KEY,
+    customer_unique_id    TEXT,
+    customer_zip_code_prefix INTEGER,
+    customer_city         TEXT,
+    customer_state        TEXT
+);
+
+CREATE TABLE sellers (
+    seller_id             TEXT PRIMARY KEY,
+    seller_zip_code_prefix INTEGER,
+    seller_city           TEXT,
+    seller_state          TEXT
+);
+
+CREATE TABLE products (
+    product_id            TEXT PRIMARY KEY,
+    product_category_name TEXT,
+    product_name_lenght   FLOAT,
+    product_description_lenght FLOAT,
+    product_photos_qty    FLOAT,
+    product_weight_g      FLOAT,
+    product_length_cm     FLOAT,
+    product_height_cm     FLOAT,
+    product_width_cm      FLOAT
+);
+
+CREATE TABLE orders (
+    order_id              TEXT PRIMARY KEY,
+    customer_id           TEXT,
+    order_status          TEXT,
+    order_purchase_timestamp        TIMESTAMP,
+    order_approved_at               TIMESTAMP,
+    order_delivered_carrier_date    TIMESTAMP,
+    order_delivered_customer_date   TIMESTAMP,
+    order_estimated_delivery_date   TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+);
+
+CREATE TABLE order_items (
+    order_id        TEXT,
+    order_item_id   INTEGER,
+    product_id      TEXT,
+    seller_id       TEXT,
+    shipping_limit_date TIMESTAMP,
+    price           NUMERIC(10, 2),
+    freight_value   NUMERIC(10, 2),
+    PRIMARY KEY (order_id, order_item_id),
+    FOREIGN KEY (order_id)    REFERENCES orders(order_id),
+    FOREIGN KEY (product_id)  REFERENCES products(product_id),
+    FOREIGN KEY (seller_id)   REFERENCES sellers(seller_id)
+);
+
+CREATE TABLE order_payments (
+    order_id            TEXT,
+    payment_sequential  INTEGER,
+    payment_type        TEXT,
+    payment_installments INTEGER,
+    payment_value       NUMERIC(10, 2),
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
+);
+
+CREATE TABLE order_reviews (
+    review_id             TEXT PRIMARY KEY,
+    order_id              TEXT,
+    review_score          INTEGER,
+    review_comment_title  TEXT,
+    review_comment_message TEXT,
+    review_creation_date  TIMESTAMP,
+    review_answer_timestamp TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id)
+);
+
+CREATE TABLE product_category_translation (
+    product_category_name         TEXT PRIMARY KEY,
+    product_category_name_english TEXT
+);
+\end{lstlisting}
+
+\section{SQL Script: Customer Retention View (\texttt{03\_analytics\_views.sql} excerpt)}
+\label{app:retention_view}
+
+\begin{lstlisting}[caption={Customer retention view using \texttt{ROW\_NUMBER()} to identify repeat purchasers.}, label={lst:retention_view}]
+CREATE OR REPLACE VIEW vw_customer_retention AS
+WITH customer_orders AS (
+    SELECT
+        c.customer_unique_id,
+        o.order_id,
+        o.order_purchase_timestamp,
+        ROW_NUMBER() OVER (
+            PARTITION BY c.customer_unique_id
+            ORDER BY o.order_purchase_timestamp
+        ) AS order_number
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    WHERE o.order_status = 'delivered'
+)
+SELECT
+    customer_unique_id,
+    COUNT(order_id)                           AS total_orders,
+    MIN(order_purchase_timestamp)             AS first_order_date,
+    MAX(order_purchase_timestamp)             AS last_order_date,
+    CASE
+        WHEN COUNT(order_id) > 1 THEN 1
+        ELSE 0
+    END AS is_repeat_customer
+FROM customer_orders
+GROUP BY customer_unique_id;
+\end{lstlisting}
+
+\section{Python Data Loading Script (\texttt{load\_reviews.py})}
+\label{app:load_reviews}
+
+\begin{lstlisting}[language=Python,
+    caption={Python script for loading the order reviews CSV into PostgreSQL, handling Latin-1 encoding and timestamp parsing.},
+    label={lst:load_reviews},
+    keywordstyle=\color{keywordblue}\bfseries,
+    stringstyle=\color{red!60!black},
+    commentstyle=\color{commentgreen}\itshape]
+import pandas as pd
+from sqlalchemy import create_engine
+from urllib.parse import quote_plus
+
+DB_USER     = "****"
+DB_PASSWORD = "****"
+DB_HOST     = "localhost"
+DB_PORT     = "****"
+DB_NAME     = "ecommerce_analytics"
+
+csv_path = r"C:\Users\..."
+encoded_password = quote_plus(DB_PASSWORD)
+
+engine = create_engine(
+    f"postgresql+psycopg2://"
+    f"{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
+
+df = pd.read_csv(csv_path, encoding="latin1", dtype=str)
+
+date_cols = ["review_creation_date", "review_answer_timestamp"]
+for col in date_cols:
+    df[col] = pd.to_datetime(df[col], errors="coerce")
+
+df.to_sql(
+    "order_reviews", engine,
+    if_exists="append", index=False,
+    chunksize=1000, method="multi"
+)
+print("Loaded order_reviews successfully.")
+\end{lstlisting}
+
+\end{document}
