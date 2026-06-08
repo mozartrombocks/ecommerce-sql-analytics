@@ -230,29 +230,6 @@ Analyzes:
 * Seller Satisfaction Metrics
 * Operational Performance
 
----
-
-## Dashboard Screenshots
-
-### Executive Overview
-
-![Executive Overview](https://chatgpt.com/c/screenshots/powerbi_results/executive_overview.png)
-
-### Product Analysis
-
-![Product Analysis](https://chatgpt.com/c/screenshots/powerbi_results/product_analysis.png)
-
-### Customer Retention
-
-![Customer Retention](https://chatgpt.com/c/screenshots/powerbi_results/customer_retention.png)
-
-### Delivery & Reviews
-
-![Delivery & Reviews](https://chatgpt.com/c/screenshots/powerbi_results/delivery_and_reviews.png)
-
-### Seller Analysis
-
-![Seller Analysis](https://chatgpt.com/c/screenshots/powerbi_results/seller_analysis.png)
 
 ---
 
